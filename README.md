@@ -58,7 +58,7 @@ It checks that the tools, config files and model are in place, and sends one sho
 ```bash
 ollama-up                # start Ollama with the settings (ollama-help lists the helpers)
 cd your-project
-opencode                 # starts in clarify; Tab switches to build
+opencode                 # starts in clarify; /agents or Shift+Tab switches agent
 ```
 
 - `clarify` can't edit or run anything. It asks up to three questions and writes a spec with a "Done when" list.

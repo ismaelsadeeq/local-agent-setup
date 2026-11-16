@@ -67,6 +67,6 @@ cat <<EOF
 == Done. Next:
   1. Open a new terminal (or: . "$HERE/shell/ollama-env.sh")
   2. ollama-up
-  3. cd your-project && opencode     # starts in clarify; Tab switches to build
+  3. cd your-project && opencode     # starts in clarify; /agents or Shift+Tab switches agent
   4. Check: ./check.sh
 EOF

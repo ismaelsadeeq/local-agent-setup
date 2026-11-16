@@ -6,7 +6,7 @@
   // in qwen3:4b made Ollama swap models on every title/summary call (bench pass 2).
   "model": "ollama/qwen3:8b",
 
-  // Start every session in the clarify agent; press Tab to switch to build.
+  // Start every session in the clarify agent; switch with /agents or Shift+Tab.
   "default_agent": "clarify",
 
   // Tool recipes and working rules every agent sees (lookup order: tldr -> --help -> research).

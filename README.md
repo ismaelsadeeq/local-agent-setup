@@ -4,6 +4,24 @@ OpenCode + `qwen3:8b` on Ollama, configured to stay local: only the Ollama provi
 
 This is the configuration from the post "What Went Wrong When I Ran a Local Coding Agent on Bitcoin Core". It's the everyday setup, without the benchmark harness and its verifier/writer loop, so **you are the checker**: run what it produces yourself.
 
+## NixOS (servers)
+
+This repo is also a flake. Its `nixosModules.default` sets up the same thing declaratively: the Ollama service with the settings above, `qwen3:8b` pulled automatically, OpenCode v2, `tlrc`, the config linked into the user's `~/.config/opencode`, and a `local-agent-check` command. Ollama and OpenCode come from this flake's own pinned nixpkgs, so every host gets the same versions.
+
+In the host flake:
+
+```nix
+inputs.local-agent.url = "github:ismaelsadeeq/local-agent-setup";
+
+# in the nixosSystem modules list:
+local-agent.nixosModules.default
+{ localAgent.user = "alice"; }
+```
+
+Per-host options: `localAgent.enable` (default `true`), `localAgent.models` (default `[ "qwen3:8b" ]`), `localAgent.ollamaPackage` (`"ollama-cpu"` by default; `"ollama-cuda"`, `"ollama-rocm"` or `"ollama-vulkan"` for GPUs).
+
+Roll out a config change to every server: commit here, then in the host repo run `nix flake update local-agent` and rebuild. Check a host with `ssh <host> local-agent-check`.
+
 ## Requirements
 
 - macOS or Linux (glibc or musl), with `curl`, `bash`, and Homebrew if you're on macOS.
@@ -75,6 +93,8 @@ Give it one small, well-defined job at a time and check the result yourself. Ope
 | `config/tool-notes.md` | `~/.config/opencode/tool-notes.md` | Tool recipes and working rules, loaded via `instructions` |
 | `config/AGENTS.md` | `~/.config/opencode/AGENTS.md` | Global working rules |
 | `shell/ollama-env.sh` | sourced from your shell rc | Ollama settings and `ollama-up/down/restart/status/log/help` |
+| `flake.nix`, `nixos/module.nix` | NixOS hosts | Declarative version of all of the above |
+| `nixos/check.sh` | `local-agent-check` on NixOS hosts | Checks versions, config, model and context on a server |
 
 To change the model or context size, edit `OLLAMA_CONTEXT_LENGTH` in `shell/ollama-env.sh` **and** `limit.context` in `config/opencode.jsonc` together, then run `ollama-restart`.
 

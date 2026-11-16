@@ -1,116 +1,132 @@
 # Local coding agent setup
 
-OpenCode + `qwen3:8b` on Ollama, configured to stay local: only the Ollama provider is allowed, web tools are off (except an approval-gated `research` agent), and every shell command asks first.
+A coding agent that runs entirely on your machine: [OpenCode](https://opencode.ai/docs/) with `qwen3:8b` on [Ollama](https://github.com/ollama/ollama). Only the local Ollama provider is allowed, web access is limited to one approval-gated agent, and every shell command asks first.
 
-This is the configuration from the post [What Went Wrong When I Ran a Local Coding Agent on Bitcoin Core](https://ismaelsadeeq.github.io/blog/2026/what-went-wrong-local-coding-agent-bitcoin-core/). It's the everyday setup, without the benchmark harness and its verifier/writer loop, so **you are the checker**: run what it produces yourself.
+This is the configuration from [What Went Wrong When I Ran a Local Coding Agent on Bitcoin Core](https://ismaelsadeeq.github.io/blog/2026/what-went-wrong-local-coding-agent-bitcoin-core/). It doesn't include the benchmark's checking loop, so **you are the checker**: run what it produces yourself.
 
-Tested with Ollama 0.40.16, OpenCode 2.2.6–2.2.7 and `qwen3:8b` (Q4_K_M).
+Tested with Ollama 0.40.16, OpenCode 2.2.6–2.2.7 and `qwen3:8b` (Q4_K_M, ID `500a1f067a9f`).
 
-## Requirements
+## What it sets up
 
-- macOS (with Homebrew), Linux (glibc or musl), or NixOS.
-- About 8 GB of free memory for the model with a 32k context (measured 7.7 GB on an M2 Pro). Without a GPU it runs on CPU, much slower.
-- About 6 GB of disk for the model.
+**Agents** (`config/opencode.jsonc`):
 
-## Install on macOS or Linux
+| Agent | Can | Can't |
+| --- | --- | --- |
+| `clarify` (default) | Ask up to 3 questions, write a spec with a "Done when" list | Edit or run anything |
+| `build` | Edit files, run commands (each command asks first) | Fetch web pages |
+| `research` | Fetch web pages, with your approval per URL | Read files, run commands, edit |
+| `summarize` | Condense long command output | Edit or run anything |
+
+**Ollama settings** (`shell/ollama-env.sh` on macOS/Linux, `nixos/module.nix` on NixOS):
+
+| Setting | Value | Why |
+| --- | --- | --- |
+| `OLLAMA_NO_CLOUD` | `1` | Never use ollama.com cloud models |
+| `OLLAMA_CONTEXT_LENGTH` | `32768` | Must match `limit.context` in `config/opencode.jsonc` |
+| `OLLAMA_FLASH_ATTENTION` | `1` | Less memory, faster long prompts |
+| `OLLAMA_KV_CACHE_TYPE` | `q8_0` | Halves KV cache memory |
+| `OLLAMA_MAX_LOADED_MODELS` | `1` | One model in memory at a time |
+| `OLLAMA_KEEP_ALIVE` | `15m` | Stay loaded between agent steps |
+| `LLAMA_ARG_CACHE_RAM` | `2048` | 2 GB prompt cache instead of 8 GB |
+
+Plus two instruction files loaded into every session: `config/tool-notes.md` (how to run code, look up commands, git recipes) and `config/AGENTS.md` (working rules).
+
+Needs about 8 GB of free memory (7.7 GB measured with a 32k context) and 6 GB of disk. Without a GPU it runs on CPU, much slower.
+
+## Install
+
+### macOS or Linux
 
 ```bash
 git clone https://github.com/ismaelsadeeq/local-agent-setup ~/local-agent-setup
 cd ~/local-agent-setup
-./install.sh --dry-run   # see what it will do
+./install.sh --dry-run   # print the steps, change nothing
 ./install.sh
 ./check.sh
 ```
 
-`install.sh`:
+`install.sh` installs Ollama, OpenCode v2 and `tlrc` (Homebrew on macOS, the official install scripts on Linux), loads the settings from your shell rc, copies the config to `~/.config/opencode/` (backing up existing files as `*.bak-<timestamp>`), and pulls `qwen3:8b`. On Linux it also gives the Ollama systemd service the same settings, through `/etc/systemd/system/ollama.service.d/local-agent.conf`. It's safe to run again.
 
-1. installs Ollama, OpenCode v2 and a `tldr` client (`brew` on macOS; the official install scripts on Linux)
-2. adds one line to `~/.zshrc` or `~/.bashrc` that sources `shell/ollama-env.sh`
-3. copies `config/opencode.jsonc`, `config/tool-notes.md` and `config/AGENTS.md` to `~/.config/opencode/`, backing up any existing files as `*.bak-<timestamp>`
-4. starts Ollama with the settings and pulls `qwen3:8b`
+It installs the latest Ollama and OpenCode, which may differ from the tested versions. For pinned versions, use NixOS.
 
-It's safe to run again; steps that are already done are skipped, except the config copy, which always backs up first.
+### NixOS
 
-`check.sh` checks that the tools, config files and model are in place, and sends one short prompt to the model. After that, `ollama ps` should show `CONTEXT 32768`.
+The repo is a flake exporting `nixosModules.default`. Ollama and OpenCode come from the nixpkgs pinned in this repo's `flake.lock`, so every host gets the same versions whatever nixpkgs the system uses.
 
-Ollama and OpenCode are installed at their latest versions, which may differ from the tested ones. For pinned versions, use the NixOS route. Both check scripts warn if `qwen3:8b` isn't the tested build (ID `500a1f067a9f`), since the tag on ollama.com can change.
-
-### Linux: the Ollama service
-
-The Linux installer also sets up a systemd service called `ollama`. That service doesn't read your shell settings, so it runs with the defaults (no 32k context, no q8_0 cache). Pick one:
-
-- stop it and use the shell helpers: `sudo systemctl disable --now ollama`, then `ollama-up`
-- or put the settings in the service: `sudo systemctl edit ollama`, add the lines below, then `sudo systemctl restart ollama`
-
-```ini
-[Service]
-Environment="OLLAMA_NO_CLOUD=1"
-Environment="OLLAMA_CONTEXT_LENGTH=32768"
-Environment="OLLAMA_FLASH_ATTENTION=1"
-Environment="OLLAMA_KV_CACHE_TYPE=q8_0"
-Environment="OLLAMA_MAX_LOADED_MODELS=1"
-Environment="OLLAMA_KEEP_ALIVE=15m"
-Environment="LLAMA_ARG_CACHE_RAM=2048"
-```
-
-## Install on NixOS
-
-This repo is also a flake. Its `nixosModules.default` sets up the same thing declaratively:
-
-- the Ollama service with the settings above, and `qwen3:8b` pulled after each rebuild
-- OpenCode v2 and `tlrc`
-- the three config files linked into the user's `~/.config/opencode` (read-only; change them here, not on the host)
-- a `local-agent-check` command, the server version of `check.sh`
-
-Ollama and OpenCode come from the nixpkgs pinned in this repo's `flake.lock`, so every host gets exactly the same versions whatever nixpkgs the system uses.
-
-In the host flake:
+In your system's `flake.nix`:
 
 ```nix
-inputs.local-agent.url = "github:ismaelsadeeq/local-agent-setup";
+{
+  inputs = {
+    # ...your existing inputs
+    local-agent.url = "github:ismaelsadeeq/local-agent-setup";
+  };
 
-# in the nixosSystem modules list:
-local-agent.nixosModules.default
-{ localAgent.user = "alice"; }
+  outputs = { nixpkgs, local-agent, ... }: {        # add local-agent here
+    nixosConfigurations.<host> = nixpkgs.lib.nixosSystem {
+      modules = [
+        # ...your existing modules
+        local-agent.nixosModules.default
+        { localAgent.user = "<your-user>"; }
+      ];
+    };
+  };
+}
 ```
 
-Per-host options:
+Remove `opencode` from your own `environment.systemPackages` if it's there; the module installs OpenCode v2. Then:
+
+```bash
+nix flake lock                                  # records the local-agent commit
+sudo nixos-rebuild switch --flake .#<host>      # or --target-host for a remote server
+local-agent-check                               # on the host
+```
+
+The first rebuild starts downloading `qwen3:8b` (about 5 GB) in the background, so the model checks fail until it finishes. Follow it with `journalctl -u ollama-model-loader -f`.
+
+Options:
 
 | Option | Default | |
 | --- | --- | --- |
-| `localAgent.enable` | `true` | Turn the whole setup off on a host |
+| `localAgent.user` | none (required) | Whose `~/.config/opencode` gets the config |
+| `localAgent.enable` | `true` | Turn the setup off on a host |
 | `localAgent.models` | `[ "qwen3:8b" ]` | Models to pull. The OpenCode config uses `qwen3:8b`. |
-| `localAgent.ollamaPackage` | `"ollama-cpu"` | `"ollama-cuda"` (NVIDIA), `"ollama-rocm"` (AMD) or `"ollama-vulkan"` |
+| `localAgent.ollamaPackage` | `"ollama-cpu"` | `"ollama-cuda"` (NVIDIA), `"ollama-rocm"` (AMD), `"ollama-vulkan"` |
 
-To roll out a change to every server: commit and push here, run `nix flake update local-agent` in the host repo, then rebuild. Check a host with `ssh <host> local-agent-check`.
+The config files are linked read-only from the Nix store, so change them in this repo, not on the host.
 
-## Use it
+## Check
+
+`./check.sh` (macOS/Linux) and `local-agent-check` (NixOS) check the versions, config files, Ollama service, model and context size, then send the model one short prompt. They warn if `qwen3:8b` isn't the tested build, since the tag on ollama.com can change.
+
+## Use
 
 ```bash
-ollama-up                # macOS/Linux only: start Ollama with the settings (ollama-help lists the helpers)
+ollama-up       # macOS/Linux, if Ollama isn't running (ollama-help lists the helpers)
 cd your-project
-opencode                 # starts in clarify; /agents or Shift+Tab switches agent
+opencode        # starts in clarify; /agents or Shift+Tab switches agent
 ```
 
-- `clarify` can't edit or run anything. It asks up to three questions and writes a spec with a "Done when" list.
-- `build` does the work and asks before every shell command.
-- `research` is the only agent that can fetch web pages, with your approval per URL.
+Give it one small, well-defined job at a time and check the result yourself. OpenCode's permission prompts aren't a security boundary: an agent with a shell can get around a blocked tool. If you let it run commands without approval, run it inside an OS-level sandbox.
 
-Give it one small, well-defined job at a time and check the result yourself. OpenCode's permission prompts aren't a security boundary; an agent with a shell can get around a blocked tool. If you let it run commands without approval, run it inside an OS-level sandbox.
+## Update
+
+- **This repo:** edit, commit, push. On macOS/Linux, `git pull && ./install.sh`. On NixOS hosts, `nix flake update local-agent` in the system flake, then rebuild.
+- **Ollama and OpenCode versions (NixOS):** `nix flake update nixpkgs` in this repo, commit, push, then update hosts as above.
+- **Context size:** change it in `config/opencode.jsonc` (`limit.context`), `shell/ollama-env.sh` and `nixos/module.nix`, together.
 
 ## Files
 
-| File | Used by | What it is |
-| --- | --- | --- |
-| `config/opencode.jsonc` | both | Models, agents, permissions, local-only policies (`__HOME__` is filled in on install) |
-| `config/tool-notes.md` | both | Tool recipes and working rules, loaded via `instructions` |
-| `config/AGENTS.md` | both | Global working rules |
-| `install.sh`, `check.sh` | macOS/Linux | Install and check |
-| `shell/ollama-env.sh` | macOS/Linux | Ollama settings and `ollama-up/down/restart/status/log/help` |
-| `flake.nix`, `flake.lock`, `nixos/module.nix` | NixOS | The NixOS module and its pinned nixpkgs |
-| `nixos/check.sh` | NixOS | Becomes `local-agent-check` |
-
-To change the context size, change it in all three places: `limit.context` in `config/opencode.jsonc`, `OLLAMA_CONTEXT_LENGTH` in `shell/ollama-env.sh`, and `OLLAMA_CONTEXT_LENGTH` in `nixos/module.nix`. Then run `ollama-restart`, or rebuild on NixOS.
+| File | What it is |
+| --- | --- |
+| `config/opencode.jsonc` | Models, agents, permissions, local-only policies. `__HOME__` is filled in on install. |
+| `config/tool-notes.md` | Tool recipes and rules, loaded via `instructions` |
+| `config/AGENTS.md` | Global working rules |
+| `install.sh`, `check.sh` | Install and check on macOS/Linux |
+| `shell/ollama-env.sh` | Ollama settings and the `ollama-up/down/restart/status/log/help` helpers |
+| `flake.nix`, `flake.lock` | The flake and its pinned nixpkgs |
+| `nixos/module.nix` | The NixOS module |
+| `nixos/check.sh` | Installed as `local-agent-check` |
 
 ## Undo
 
@@ -118,9 +134,10 @@ macOS/Linux:
 
 ```bash
 ollama-down
-mv ~/.config/opencode/opencode.jsonc.bak-<timestamp> ~/.config/opencode/opencode.jsonc   # restore your old config
+mv ~/.config/opencode/opencode.jsonc.bak-<timestamp> ~/.config/opencode/opencode.jsonc
 # remove the "local coding agent" line from ~/.zshrc or ~/.bashrc
+sudo rm -f /etc/systemd/system/ollama.service.d/local-agent.conf   # Linux
 ollama rm qwen3:8b
 ```
 
-NixOS: set `localAgent.enable = false;` (or remove the module) and rebuild.
+NixOS: set `localAgent.enable = false;` or remove the module, then rebuild.

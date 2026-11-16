@@ -52,7 +52,18 @@ done
 run "sed 's|__HOME__|$HOME|g' '$HERE/config/opencode.jsonc' > '$OC_DIR/opencode.jsonc'"
 run "cp '$HERE/config/tool-notes.md' '$HERE/config/AGENTS.md' '$OC_DIR/'"
 
-# 6. Start Ollama with the settings and pull the model
+# 6. Linux: the official installer runs Ollama as a systemd service, which doesn't read shell
+#    settings. Give the service the same settings (from ollama-env.sh) through a drop-in file.
+if [ "$OS" = "Linux" ] && systemctl cat ollama.service >/dev/null 2>&1; then
+  DROPIN=/etc/systemd/system/ollama.service.d/local-agent.conf
+  CONF="$( { echo "[Service]"; grep -E '^export (OLLAMA|LLAMA)_[A-Z_]+=' "$HERE/shell/ollama-env.sh" \
+    | grep -v OLLAMA_LOG | sed -E 's/^export ([A-Z_]+)=([^ ]+).*/Environment="\1=\2"/'; } )"
+  run "sudo mkdir -p '$(dirname "$DROPIN")'"
+  run "printf '%s\n' \"\$CONF\" | sudo tee '$DROPIN' >/dev/null"
+  run "sudo systemctl daemon-reload && sudo systemctl restart ollama"
+fi
+
+# 7. Start Ollama with the settings (no-op if the service is already running) and pull the model
 # shellcheck disable=SC1091
 . "$HERE/shell/ollama-env.sh"
 if [ $DRY -eq 0 ]; then

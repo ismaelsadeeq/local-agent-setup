@@ -18,6 +18,8 @@ grep -q "__HOME__" "$HOME/.config/opencode/opencode.jsonc" 2>/dev/null && bad "o
 if _ollama_alive; then ok "ollama server running"; else bad "ollama server not running (run: ollama-up)"; fi
 ollama list 2>/dev/null | grep -q '^qwen3:8b' && ok "qwen3:8b pulled" || bad "qwen3:8b not pulled (run: ollama pull qwen3:8b)"
 
+id=$(ollama list 2>/dev/null | awk '$1=="qwen3:8b"{print $2}')
+[ "$id" = "500a1f067a9f" ] && ok "qwen3:8b is the tested build (500a1f067a9f)" || echo "warn qwen3:8b ID is ${id:-missing}, tested build was 500a1f067a9f (the ollama.com tag may have moved)"
 if _ollama_alive; then
   out=$(curl -s -m 300 http://127.0.0.1:11434/api/generate -d '{"model":"qwen3:8b","prompt":"Reply with the word ok.","stream":false,"think":false}')
   echo "$out" | grep -q '"response"' && ok "model answers" || bad "model did not answer: ${out:0:200}"

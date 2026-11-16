@@ -33,7 +33,7 @@ It's safe to run again; steps that are already done are skipped, except the conf
 
 `check.sh` checks that the tools, config files and model are in place, and sends one short prompt to the model. After that, `ollama ps` should show `CONTEXT 32768`.
 
-Ollama and OpenCode are installed at their latest versions, which may differ from the tested ones. For pinned versions, use the NixOS route.
+Ollama and OpenCode are installed at their latest versions, which may differ from the tested ones. For pinned versions, use the NixOS route. Both check scripts warn if `qwen3:8b` isn't the tested build (ID `500a1f067a9f`), since the tag on ollama.com can change.
 
 ### Linux: the Ollama service
 

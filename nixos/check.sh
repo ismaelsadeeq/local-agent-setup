@@ -17,6 +17,8 @@ done
 if ollama list 2>/dev/null | grep -q '^qwen3:8b'; then ok "qwen3:8b pulled"
 else bad "qwen3:8b not pulled yet (see: journalctl -u ollama-model-loader)"; fi
 
+id=$(ollama list 2>/dev/null | awk '$1=="qwen3:8b"{print $2}')
+[ "$id" = "500a1f067a9f" ] && ok "qwen3:8b is the tested build (500a1f067a9f)" || echo "warn qwen3:8b ID is ${id:-missing}, tested build was 500a1f067a9f (the ollama.com tag may have moved)"
 out=$(curl -s -m 600 http://127.0.0.1:11434/api/generate \
   -d '{"model":"qwen3:8b","prompt":"Reply with the word ok.","stream":false,"think":false}')
 echo "$out" | grep -q '"response"' && ok "model answers" || bad "model did not answer: ${out:0:200}"

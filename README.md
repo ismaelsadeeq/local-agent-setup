@@ -2,7 +2,7 @@
 
 OpenCode + `qwen3:8b` on Ollama, configured to stay local: only the Ollama provider is allowed, web tools are off (except an approval-gated `research` agent), and every shell command asks first.
 
-This is the configuration from the post "What Went Wrong When I Ran a Local Coding Agent on Bitcoin Core". It's the everyday setup, without the benchmark harness and its verifier/writer loop, so **you are the checker**: run what it produces yourself.
+This is the configuration from the post [What Went Wrong When I Ran a Local Coding Agent on Bitcoin Core](https://ismaelsadeeq.github.io/blog/2026/what-went-wrong-local-coding-agent-bitcoin-core/). It's the everyday setup, without the benchmark harness and its verifier/writer loop, so **you are the checker**: run what it produces yourself.
 
 ## NixOS (servers)
 
